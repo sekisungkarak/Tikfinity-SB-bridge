@@ -15,7 +15,8 @@ const successTF = document.getElementById("success-tikfinity");
 const waitingSP = document.getElementById("waiting-spotify");
 const successSP = document.getElementById("success-spotify");
 
-// Show green box and hide red box
+// -------------------- UI HELPERS --------------------
+
 function showSuccess(source) {
   const map = {
     streamerbot: [waitingSB, successSB],
@@ -39,7 +40,6 @@ function showSuccess(source) {
   }, 500);
 }
 
-// Reset layout if disconnected
 function updateStatusBoxes() {
   if (!streamerbotConnected) {
     waitingSB.classList.remove("hidden", "fade-out");
@@ -57,7 +57,8 @@ function updateStatusBoxes() {
   }
 }
 
-// Streamer.bot setup
+// -------------------- STREAMER.BOT --------------------
+
 function connectStreamerbotClient() {
   sbClient = new StreamerbotClient();
 
@@ -73,13 +74,43 @@ function connectStreamerbotClient() {
     if (streamerbotConnected) {
       console.warn("❌ Disconnected from Streamer.Bot");
     }
+
     streamerbotConnected = false;
     updateStatusBoxes();
     setTimeout(connectStreamerbotClient, 2000);
   };
+
+  // -------- Spotify events from Streamer.bot --------
+
+  let spotifyHeartbeat = null;
+
+  sbClient.on("spotify.connected", () => {
+    spotifyConnected = true;
+    console.log("🎵 Spotify connected (via Streamer.bot)");
+    showSuccess("spotify");
+
+    clearTimeout(spotifyHeartbeat);
+    spotifyHeartbeat = setTimeout(() => {
+      spotifyConnected = false;
+      updateStatusBoxes();
+      console.warn("⚠️ Spotify heartbeat timeout");
+    }, 15000);
+  });
+
+  sbClient.on("spotify.songchange", () => {
+    spotifyConnected = true;
+
+    clearTimeout(spotifyHeartbeat);
+    spotifyHeartbeat = setTimeout(() => {
+      spotifyConnected = false;
+      updateStatusBoxes();
+      console.warn("⚠️ Spotify heartbeat timeout");
+    }, 15000);
+  });
 }
 
-// TikFinity setup
+// -------------------- TIKFINITY --------------------
+
 function connectTikFinity() {
   const port = new URLSearchParams(location.search).get("port") || "21213";
   const socket = new WebSocket(`ws://localhost:${port}`);
@@ -97,9 +128,9 @@ function connectTikFinity() {
   socket.onclose = () => {
     if (tikfinityConnected) {
       console.warn("❌ Disconnected from TikFinity");
-
       sbClient.executeCodeTrigger("tikfinity.disconnected", { connected: false });
     }
+
     tikfinityConnected = false;
     updateStatusBoxes();
     setTimeout(connectTikFinity, 2000);
@@ -182,55 +213,7 @@ function connectTikFinity() {
   };
 }
 
-// Spotify (Spicetify) bridge
-function connectSpotifyBridge() {
-  function waitForSpicetify() {
-    if (!window.Spicetify || !Spicetify.Player) {
-      setTimeout(waitForSpicetify, 1000);
-      return;
-    }
-    initSpotify();
-  }
+// -------------------- RUN --------------------
 
-  let lastTrackUri = "";
-
-  function initSpotify() {
-    if (!spotifyConnected) {
-      spotifyConnected = true;
-      console.log("✅ Connected to Spotify (Spicetify)");
-      showSuccess("spotify");
-
-      sbClient.executeCodeTrigger("spotify.connected", { connected: true });
-    }
-
-    Spicetify.Player.addEventListener("songchange", () => {
-      const state = Spicetify.Player.data;
-      if (!state || !state.item) return;
-
-      const track = state.item;
-      if (track.uri === lastTrackUri) return;
-      lastTrackUri = track.uri;
-
-      sbClient.executeCodeTrigger("spotify.songchange", {
-        title: track.name,
-        artist: track.artists.map(a => a.name).join(", "),
-        album: track.album.name,
-        durationMs: track.duration_ms,
-        uri: track.uri
-      });
-    });
-
-    Spicetify.Player.addEventListener("onplaypause", () => {
-      sbClient.executeCodeTrigger("spotify.playpause", {
-        isPlaying: !Spicetify.Player.data.isPaused
-      });
-    });
-  }
-
-  waitForSpicetify();
-}
-
-// Run all
 connectStreamerbotClient();
 connectTikFinity();
-connectSpotifyBridge();
