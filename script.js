@@ -82,8 +82,9 @@ function connectStreamerbotClient() {
     updateStatusBoxes();
     setTimeout(connectStreamerbotClient, 2000);
   };
+}
 
-  // -------- Spotify events from Streamer.bot --------
+// -------------------- SPOTIFY --------------------
 
 async function pollSpotify() {
   try {
@@ -92,7 +93,8 @@ async function pollSpotify() {
 
     const json = await res.json();
 
-    if (!json.sessions || json.sessions.length === 0) return;
+    if (!json.sessions || json.sessions.length === 0)
+      throw new Error("No active session");
 
     const session = json.sessions[0];
     const media = session.media_properties;
@@ -101,65 +103,77 @@ async function pollSpotify() {
 
     // Connected
     if (!spotifyConnected) {
-        spotifyConnected = true;
+      spotifyConnected = true;
 
+      console.log("🎵 Spotify connected");
+
+      if (sbClient) {
         sbClient.executeCodeTrigger("spotify.connected", {
-            connected: true
+          connected: true
         });
+      }
 
-        showSuccess("spotify");
-        updateStatusBoxes();
+      showSuccess("spotify");
+      updateStatusBoxes();
     }
 
     clearTimeout(spotifyHeartbeat);
+
     spotifyHeartbeat = setTimeout(() => {
-        if (spotifyConnected) {
-            spotifyConnected = false;
+      if (!spotifyConnected) return;
 
-            sbClient.executeCodeTrigger("spotify.disconnected", {
-                connected: false
-            });
+      spotifyConnected = false;
 
-            updateStatusBoxes();
-        }
+      console.warn("❌ Spotify disconnected");
+
+      if (sbClient) {
+        sbClient.executeCodeTrigger("spotify.disconnected", {
+          connected: false
+        });
+      }
+
+      updateStatusBoxes();
     }, 15000);
 
-    // Song Changed
+    // Song changed
     const trackId = `${media.Artist}|${media.AlbumTitle}|${media.Title}`;
 
     if (trackId !== lastTrackId) {
-        lastTrackId = trackId;
+      lastTrackId = trackId;
 
-        console.log(`🎵 ${media.Artist} - ${media.Title}`);
+      console.log(`🎵 ${media.Artist} - ${media.Title}`);
 
+      if (sbClient) {
         sbClient.executeCodeTrigger("spotify.songchange", {
-            title: media.Title,
-            artist: media.Artist,
-            album: media.AlbumTitle,
-            albumArtist: media.AlbumArtist,
-            duration: timeline.EndTime,
-            position: timeline.Position,
-            playbackStatus: playback.PlaybackStatus,
-            shuffle: playback.IsShuffleActive,
-            source: session.source_app_id
+          title: media.Title,
+          artist: media.Artist,
+          album: media.AlbumTitle,
+          albumArtist: media.AlbumArtist,
+          duration: timeline.EndTime,
+          position: timeline.Position,
+          playbackStatus: playback.PlaybackStatus,
+          shuffle: playback.IsShuffleActive,
+          source: session.source_app_id
         });
+      }
     }
+  } catch (err) {
+    clearTimeout(spotifyHeartbeat);
 
-} catch (err) {
     if (spotifyConnected) {
-        spotifyConnected = false;
+      spotifyConnected = false;
 
+      console.warn("❌ Spotify disconnected");
+
+      if (sbClient) {
         sbClient.executeCodeTrigger("spotify.disconnected", {
-            connected: false
+          connected: false
         });
+      }
 
-        updateStatusBoxes();
+      updateStatusBoxes();
     }
-}
-
-setInterval(pollSpotify, 1000);
-pollSpotify();
-}
+  }
 }
 
 // -------------------- TIKFINITY --------------------
@@ -270,3 +284,6 @@ function connectTikFinity() {
 
 connectStreamerbotClient();
 connectTikFinity();
+
+pollSpotify();
+setInterval(pollSpotify, 1000);
