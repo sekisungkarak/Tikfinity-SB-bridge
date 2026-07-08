@@ -172,6 +172,7 @@ async function pollSpotify() {
           artist: media.Artist,
           album: media.AlbumTitle,
           albumArtist: media.AlbumArtist,
+          coverImage: media.Thumbnail,
           duration: timeline.EndTime,
           position: timeline.Position,
           playbackStatus: playback.PlaybackStatus,
