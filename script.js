@@ -97,24 +97,31 @@ async function pollSpotify() {
 
         const json = await res.json();
 
-        // Connected / Disconnected
         const connected = json.current_session_id !== null;
-        const wasConnected = spotifyConnected;
+        let justConnected = false;
 
+        // Connected / Disconnected
         if (connected !== spotifyConnected) {
             spotifyConnected = connected;
 
             if (connected) {
+                justConnected = true;
+
+                console.log("🎵 Spotify connected");
+
                 sbClient.executeCodeTrigger("spotify.connected", {
                     connected: true
                 });
 
                 showSuccess("spotify");
             } else {
+                console.log("❌ Spotify disconnected");
+
                 sbClient.executeCodeTrigger("spotify.disconnected", {
                     connected: false
                 });
 
+                lastPlaybackStatus = -1;
                 updateStatusBoxes();
                 return;
             }
@@ -122,7 +129,6 @@ async function pollSpotify() {
             updateStatusBoxes();
         }
 
-        // No active session
         if (!connected || !json.sessions || json.sessions.length === 0)
             return;
 
@@ -131,7 +137,7 @@ async function pollSpotify() {
         const playback = session.playback_info;
         const timeline = session.timeline_properties;
 
-        // Playback status changed
+        // Playback Status
         if (playback.PlaybackStatus !== lastPlaybackStatus) {
             lastPlaybackStatus = playback.PlaybackStatus;
 
@@ -139,36 +145,34 @@ async function pollSpotify() {
                 case 0:
                     sbClient.executeCodeTrigger("spotify.closed");
                     break;
-
                 case 1:
                     sbClient.executeCodeTrigger("spotify.opened");
                     break;
-
                 case 3:
                     sbClient.executeCodeTrigger("spotify.stopped");
                     break;
-
                 case 4:
                     sbClient.executeCodeTrigger("spotify.playing");
                     break;
-
                 case 5:
                     sbClient.executeCodeTrigger("spotify.paused");
                     break;
             }
         }
 
-        // Song changed
-        onst trackId = `${media.Artist}|${media.AlbumTitle}|${media.Title}`;
+        // Song Changed
+        const trackId = `${media.Artist}|${media.AlbumTitle}|${media.Title}`;
 
         if (trackId !== lastTrackId) {
 
-            // Update cache first
+            // Always remember current track
             lastTrackId = trackId;
 
-            // Don't fire on first connection
-            if (!wasConnected)
+            // Skip first poll after connecting
+            if (justConnected)
                 return;
+
+            console.log(`🎵 ${media.Artist} - ${media.Title}`);
 
             sbClient.executeCodeTrigger("spotify.songchange", {
                 title: media.Title,
