@@ -2,7 +2,6 @@ let streamerbotConnected = false;
 let tikfinityConnected = false;
 let spotifyConnected = false;
 
-let spotifyHeartbeat = null;
 let lastTrackId = "";
 let lastPlaybackStatus = -1;
 
@@ -90,115 +89,104 @@ function connectStreamerbotClient() {
 const SPOTIFY_API = "http://127.0.0.1:5000/now-playing";
 
 async function pollSpotify() {
-  try {
-    const res = await fetch(SPOTIFY_API);
-    if (!res.ok) throw new Error();
+    try {
+        const res = await fetch(SPOTIFY_API);
 
-    const json = await res.json();
+        if (!res.ok)
+            throw new Error(`HTTP ${res.status}`);
 
-    if (!json.sessions || json.sessions.length === 0)
-      throw new Error("No active session");
+        const json = await res.json();
 
-    const session = json.sessions[0];
-    const media = session.media_properties;
-    const playback = session.playback_info;
-    const timeline = session.timeline_properties;
+        // Connected
+        if (!spotifyConnected) {
+            spotifyConnected = true;
 
-    if (playback.PlaybackStatus !== lastPlaybackStatus) {
-    lastPlaybackStatus = playback.PlaybackStatus;
+            console.log("🎵 Spotify connected");
 
-    switch (playback.PlaybackStatus) {
-        case 3:
-            console.log("⏹️ Spotify Stopped");
-            sbClient.executeCodeTrigger("spotify.stopped");
-            break;
+            if (sbClient) {
+                sbClient.executeCodeTrigger("spotify.connected", {
+                    connected: true
+                });
+            }
 
-        case 4:
-            console.log("▶️ Spotify Playing");
-            sbClient.executeCodeTrigger("spotify.playing");
-            break;
+            showSuccess("spotify");
+            updateStatusBoxes();
+        }
 
-        case 5:
-            console.log("⏸️ Spotify Paused");
-            sbClient.executeCodeTrigger("spotify.paused");
-            break;
+        if (!json.sessions || json.sessions.length === 0)
+            return;
+
+        const session = json.sessions[0];
+        const media = session.media_properties;
+        const playback = session.playback_info;
+        const timeline = session.timeline_properties;
+
+        // Playback status changed
+        if (playback.PlaybackStatus !== lastPlaybackStatus) {
+            lastPlaybackStatus = playback.PlaybackStatus;
+
+            switch (playback.PlaybackStatus) {
+                case 0:
+                    sbClient?.executeCodeTrigger("spotify.closed");
+                    break;
+
+                case 1:
+                    sbClient?.executeCodeTrigger("spotify.opened");
+                    break;
+
+                case 3:
+                    sbClient?.executeCodeTrigger("spotify.stopped");
+                    break;
+
+                case 4:
+                    sbClient?.executeCodeTrigger("spotify.playing");
+                    break;
+
+                case 5:
+                    sbClient?.executeCodeTrigger("spotify.paused");
+                    break;
+            }
+        }
+
+        // Song changed
+        const trackId = `${media.Artist}|${media.AlbumTitle}|${media.Title}`;
+
+        if (trackId !== lastTrackId) {
+            lastTrackId = trackId;
+
+            console.log(`🎵 ${media.Artist} - ${media.Title}`);
+
+            sbClient?.executeCodeTrigger("spotify.songchange", {
+                title: media.Title,
+                artist: media.Artist,
+                album: media.AlbumTitle,
+                albumArtist: media.AlbumArtist,
+                thumbnail: media.Thumbnail,
+                duration: timeline.EndTime,
+                position: timeline.Position,
+                playbackStatus: playback.PlaybackStatus,
+                shuffle: playback.IsShuffleActive,
+                source: session.source_app_id
+            });
+        }
+
+    } catch (err) {
+        if (spotifyConnected) {
+            spotifyConnected = false;
+            lastPlaybackStatus = -1;
+            lastTrackId = "";
+
+            console.warn("❌ Spotify disconnected");
+
+            sbClient?.executeCodeTrigger("spotify.disconnected", {
+                connected: false
+            });
+
+            updateStatusBoxes();
+        }
     }
 }
-    // Connected
-    if (!spotifyConnected) {
-      spotifyConnected = true;
 
-      console.log("🎵 Spotify connected");
-
-      if (sbClient) {
-        sbClient.executeCodeTrigger("spotify.connected", {
-          connected: true
-        });
-      }
-
-      showSuccess("spotify");
-      updateStatusBoxes();
-    }
-
-    clearTimeout(spotifyHeartbeat);
-
-    spotifyHeartbeat = setTimeout(() => {
-      if (!spotifyConnected) return;
-
-      spotifyConnected = false;
-
-      console.warn("❌ Spotify disconnected");
-
-      if (sbClient) {
-        sbClient.executeCodeTrigger("spotify.disconnected", {
-          connected: false
-        });
-      }
-
-      updateStatusBoxes();
-    }, 15000);
-
-    // Song changed
-    const trackId = `${media.Artist}|${media.AlbumTitle}|${media.Title}`;
-
-    if (trackId !== lastTrackId) {
-      lastTrackId = trackId;
-
-      console.log(`🎵 ${media.Artist} - ${media.Title}`);
-
-      if (sbClient) {
-        sbClient.executeCodeTrigger("spotify.songchange", {
-          title: media.Title,
-          artist: media.Artist,
-          album: media.AlbumTitle,
-          albumArtist: media.AlbumArtist,
-          coverImage: media.Thumbnail,
-          duration: timeline.EndTime,
-          position: timeline.Position,
-          playbackStatus: playback.PlaybackStatus,
-          shuffle: playback.IsShuffleActive,
-          source: session.source_app_id
-        });
-      }
-    }
-  } catch (err) {
-    clearTimeout(spotifyHeartbeat);
-
-    if (spotifyConnected) {
-      spotifyConnected = false;
-
-      console.warn("❌ Spotify disconnected");
-
-      if (sbClient) {
-        sbClient.executeCodeTrigger("spotify.disconnected", {
-          connected: false
-        });
-      }
-
-      updateStatusBoxes();
-    }
-  }
-}
 
 // -------------------- TIKFINITY --------------------
 
