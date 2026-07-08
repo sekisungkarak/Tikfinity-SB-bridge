@@ -2,7 +2,6 @@ let streamerbotConnected = false;
 let tikfinityConnected = false;
 let spotifyConnected = false;
 
-let lastTrackId = "";
 let lastPlaybackStatus = -1;
 
 // Global sbClient
@@ -98,15 +97,13 @@ async function pollSpotify() {
         const json = await res.json();
 
         const connected = json.current_session_id !== null;
-        let justConnected = false;
+        const wasConnected = spotifyConnected;
 
         // Connected / Disconnected
         if (connected !== spotifyConnected) {
             spotifyConnected = connected;
 
             if (connected) {
-                justConnected = true;
-
                 console.log("🎵 Spotify connected");
 
                 sbClient.executeCodeTrigger("spotify.connected", {
@@ -163,14 +160,13 @@ async function pollSpotify() {
         // Song Changed
         const trackId = `${media.Artist}|${media.AlbumTitle}|${media.Title}`;
 
-        if (trackId !== lastTrackId) {
-
-            // Always remember current track
+        // First poll after connecting:
+        // cache the current song but don't fire spotify.songchange
+        if (!wasConnected && spotifyConnected) {
             lastTrackId = trackId;
-
-            // Skip first poll after connecting
-            if (justConnected)
-                return;
+        }
+        else if (trackId !== lastTrackId) {
+            lastTrackId = trackId;
 
             console.log(`🎵 ${media.Artist} - ${media.Title}`);
 
