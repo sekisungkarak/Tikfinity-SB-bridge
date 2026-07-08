@@ -161,16 +161,13 @@ async function pollSpotify() {
             }
         }
 
-
         // Song changed
         const trackId = `${media.Artist}|${media.AlbumTitle}|${media.Title}`;
 
         if (trackId !== lastTrackId) {
             lastTrackId = trackId;
 
-            console.log(`🎵 ${media.Artist} - ${media.Title}`);
-
-            sbClient?.executeCodeTrigger("spotify.songchange", {
+            sbClient.executeCodeTrigger("spotify.songchange", {
                 title: media.Title,
                 artist: media.Artist,
                 album: media.AlbumTitle,
@@ -185,19 +182,7 @@ async function pollSpotify() {
         }
 
     } catch (err) {
-        if (spotifyConnected) {
-            spotifyConnected = false;
-            lastPlaybackStatus = -1;
-            lastTrackId = "";
-
-            console.warn("❌ Spotify disconnected");
-
-            sbClient?.executeCodeTrigger("spotify.disconnected", {
-                connected: false
-            });
-
-            updateStatusBoxes();
-        }
+        console.warn("Spotify API unavailable:", err.message);
     }
 }
 
