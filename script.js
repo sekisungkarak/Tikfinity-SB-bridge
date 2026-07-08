@@ -4,6 +4,7 @@ let spotifyConnected = false;
 
 let spotifyHeartbeat = null;
 let lastTrackId = "";
+let lastPlaybackStatus = -1;
 
 // Global sbClient
 let sbClient = null;
@@ -103,6 +104,26 @@ async function pollSpotify() {
     const playback = session.playback_info;
     const timeline = session.timeline_properties;
 
+    if (playback.PlaybackStatus !== lastPlaybackStatus) {
+    lastPlaybackStatus = playback.PlaybackStatus;
+
+    switch (playback.PlaybackStatus) {
+        case 3:
+            console.log("⏹️ Spotify Stopped");
+            sbClient.executeCodeTrigger("spotify.stopped");
+            break;
+
+        case 4:
+            console.log("▶️ Spotify Playing");
+            sbClient.executeCodeTrigger("spotify.playing");
+            break;
+
+        case 5:
+            console.log("⏸️ Spotify Paused");
+            sbClient.executeCodeTrigger("spotify.paused");
+            break;
+    }
+}
     // Connected
     if (!spotifyConnected) {
       spotifyConnected = true;
