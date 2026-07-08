@@ -117,9 +117,6 @@ async function pollSpotify() {
                 sbClient.executeCodeTrigger("spotify.disconnected", {
                     connected: false
                 });
-
-                lastTrackId = "";
-                lastPlaybackStatus = -1;
             }
 
             updateStatusBoxes();
