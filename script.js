@@ -156,10 +156,11 @@ async function pollSpotify() {
         updateStatusBoxes();
     }
 }
-}
-}
+
 setInterval(pollSpotify, 1000);
 pollSpotify();
+}
+}
 
 // -------------------- TIKFINITY --------------------
 
