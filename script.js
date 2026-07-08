@@ -99,25 +99,24 @@ async function pollSpotify() {
 
         // Connected / Disconnected
         const connected = json.current_session_id !== null;
+        const wasConnected = spotifyConnected;
 
         if (connected !== spotifyConnected) {
             spotifyConnected = connected;
 
             if (connected) {
-                console.log("🎵 Spotify connected");
-
                 sbClient.executeCodeTrigger("spotify.connected", {
                     connected: true
                 });
 
                 showSuccess("spotify");
             } else {
-                console.log("❌ Spotify disconnected");
-
                 sbClient.executeCodeTrigger("spotify.disconnected", {
                     connected: false
                 });
-                lastPlaybackStatus = -1;
+
+                updateStatusBoxes();
+                return;
             }
 
             updateStatusBoxes();
@@ -160,10 +159,16 @@ async function pollSpotify() {
         }
 
         // Song changed
-        const trackId = `${media.Artist}|${media.AlbumTitle}|${media.Title}`;
+        onst trackId = `${media.Artist}|${media.AlbumTitle}|${media.Title}`;
 
         if (trackId !== lastTrackId) {
+
+            // Update cache first
             lastTrackId = trackId;
+
+            // Don't fire on first connection
+            if (!wasConnected)
+                return;
 
             sbClient.executeCodeTrigger("spotify.songchange", {
                 title: media.Title,
