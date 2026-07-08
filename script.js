@@ -86,9 +86,11 @@ function connectStreamerbotClient() {
 
 // -------------------- SPOTIFY --------------------
 
+const SPOTIFY_API = "http://127.0.0.1:5000/now-playing";
+
 async function pollSpotify() {
   try {
-    const res = await fetch("http://127.0.0.1:5000/now-playing");
+    const res = await fetch(SPOTIFY_API);
     if (!res.ok) throw new Error();
 
     const json = await res.json();
