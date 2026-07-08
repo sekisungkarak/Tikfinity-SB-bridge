@@ -97,22 +97,6 @@ async function pollSpotify() {
 
         const json = await res.json();
 
-        // Connected
-        if (!spotifyConnected) {
-            spotifyConnected = true;
-
-            console.log("🎵 Spotify connected");
-
-            if (sbClient) {
-                sbClient.executeCodeTrigger("spotify.connected", {
-                    connected: true
-                });
-            }
-
-            showSuccess("spotify");
-            updateStatusBoxes();
-        }
-
         if (!json.sessions || json.sessions.length === 0)
             return;
 
@@ -121,32 +105,53 @@ async function pollSpotify() {
         const playback = session.playback_info;
         const timeline = session.timeline_properties;
 
-        // Playback status changed
-        if (playback.PlaybackStatus !== lastPlaybackStatus) {
-            lastPlaybackStatus = playback.PlaybackStatus;
+        const status = playback.PlaybackStatus;
 
-            switch (playback.PlaybackStatus) {
-                case 0:
-                    sbClient?.executeCodeTrigger("spotify.closed");
-                    break;
+// Connected / Disconnected
+if (status === 0 && spotifyConnected) {
+    spotifyConnected = false;
 
-                case 1:
-                    sbClient?.executeCodeTrigger("spotify.opened");
-                    break;
+    sbClient.executeCodeTrigger("spotify.disconnected", {
+        connected: false
+    });
 
-                case 3:
-                    sbClient?.executeCodeTrigger("spotify.stopped");
-                    break;
+    updateStatusBoxes();
+}
 
-                case 4:
-                    sbClient?.executeCodeTrigger("spotify.playing");
-                    break;
+if (status !== 0 && !spotifyConnected) {
+    spotifyConnected = true;
 
-                case 5:
-                    sbClient?.executeCodeTrigger("spotify.paused");
-                    break;
-            }
-        }
+    sbClient.executeCodeTrigger("spotify.connected", {
+        connected: true
+    });
+
+    showSuccess("spotify");
+    updateStatusBoxes();
+}
+
+// Playback state changed
+if (status !== lastPlaybackStatus) {
+    lastPlaybackStatus = status;
+
+    switch (status) {
+        case 0:
+            sbClient.executeCodeTrigger("spotify.closed");
+            break;
+        case 1:
+            sbClient.executeCodeTrigger("spotify.opened");
+            break;
+        case 3:
+            sbClient.executeCodeTrigger("spotify.stopped");
+            break;
+        case 4:
+            sbClient.executeCodeTrigger("spotify.playing");
+            break;
+        case 5:
+            sbClient.executeCodeTrigger("spotify.paused");
+            break;
+    }
+}
+
 
         // Song changed
         const trackId = `${media.Artist}|${media.AlbumTitle}|${media.Title}`;
