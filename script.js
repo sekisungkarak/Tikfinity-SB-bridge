@@ -97,7 +97,36 @@ async function pollSpotify() {
 
         const json = await res.json();
 
-        if (!json.sessions || json.sessions.length === 0)
+        // Connected / Disconnected
+        const connected = json.current_session_id !== null;
+
+        if (connected !== spotifyConnected) {
+            spotifyConnected = connected;
+
+            if (connected) {
+                console.log("🎵 Spotify connected");
+
+                sbClient.executeCodeTrigger("spotify.connected", {
+                    connected: true
+                });
+
+                showSuccess("spotify");
+            } else {
+                console.log("❌ Spotify disconnected");
+
+                sbClient.executeCodeTrigger("spotify.disconnected", {
+                    connected: false
+                });
+
+                lastTrackId = "";
+                lastPlaybackStatus = -1;
+            }
+
+            updateStatusBoxes();
+        }
+
+        // No active session
+        if (!connected || !json.sessions || json.sessions.length === 0)
             return;
 
         const session = json.sessions[0];
@@ -105,52 +134,32 @@ async function pollSpotify() {
         const playback = session.playback_info;
         const timeline = session.timeline_properties;
 
-        const status = playback.PlaybackStatus;
+        // Playback status changed
+        if (playback.PlaybackStatus !== lastPlaybackStatus) {
+            lastPlaybackStatus = playback.PlaybackStatus;
 
-// Connected / Disconnected
-if (status === 0 && spotifyConnected) {
-    spotifyConnected = false;
+            switch (playback.PlaybackStatus) {
+                case 0:
+                    sbClient.executeCodeTrigger("spotify.closed");
+                    break;
 
-    sbClient.executeCodeTrigger("spotify.disconnected", {
-        connected: false
-    });
+                case 1:
+                    sbClient.executeCodeTrigger("spotify.opened");
+                    break;
 
-    updateStatusBoxes();
-}
+                case 3:
+                    sbClient.executeCodeTrigger("spotify.stopped");
+                    break;
 
-if (status !== 0 && !spotifyConnected) {
-    spotifyConnected = true;
+                case 4:
+                    sbClient.executeCodeTrigger("spotify.playing");
+                    break;
 
-    sbClient.executeCodeTrigger("spotify.connected", {
-        connected: true
-    });
-
-    showSuccess("spotify");
-    updateStatusBoxes();
-}
-
-// Playback state changed
-if (status !== lastPlaybackStatus) {
-    lastPlaybackStatus = status;
-
-    switch (status) {
-        case 0:
-            sbClient.executeCodeTrigger("spotify.closed");
-            break;
-        case 1:
-            sbClient.executeCodeTrigger("spotify.opened");
-            break;
-        case 3:
-            sbClient.executeCodeTrigger("spotify.stopped");
-            break;
-        case 4:
-            sbClient.executeCodeTrigger("spotify.playing");
-            break;
-        case 5:
-            sbClient.executeCodeTrigger("spotify.paused");
-            break;
-    }
-}
+                case 5:
+                    sbClient.executeCodeTrigger("spotify.paused");
+                    break;
+            }
+        }
 
 
         // Song changed
