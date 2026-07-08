@@ -2,6 +2,9 @@ let streamerbotConnected = false;
 let tikfinityConnected = false;
 let spotifyConnected = false;
 
+let spotifyHeartbeat = null;
+let lastTrackId = "";
+
 // Global sbClient
 let sbClient = null;
 
@@ -82,10 +85,6 @@ function connectStreamerbotClient() {
 
   // -------- Spotify events from Streamer.bot --------
 
-  let spotifyConnected = false;
-let spotifyHeartbeat = null;
-let lastTrackId = "";
-
 async function pollSpotify() {
   try {
     const res = await fetch("http://127.0.0.1:5000/now-playing/");
@@ -157,11 +156,10 @@ async function pollSpotify() {
         updateStatusBoxes();
     }
 }
-
+}
+}
 setInterval(pollSpotify, 1000);
 pollSpotify();
-}
-}
 
 // -------------------- TIKFINITY --------------------
 
