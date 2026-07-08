@@ -82,31 +82,85 @@ function connectStreamerbotClient() {
 
   // -------- Spotify events from Streamer.bot --------
 
-  let spotifyHeartbeat = null;
+  let spotifyConnected = false;
+let spotifyHeartbeat = null;
+let lastTrackId = "";
 
-  sbClient.on("spotify.connected", () => {
-    spotifyConnected = true;
-    console.log("🎵 Spotify connected (via Streamer.bot)");
-    showSuccess("spotify");
+async function pollSpotify() {
+  try {
+    const res = await fetch("http://127.0.0.1:5000/now-playing/");
+    if (!res.ok) throw new Error();
+
+    const json = await res.json();
+
+    if (!json.sessions || json.sessions.length === 0) return;
+
+    const session = json.sessions[0];
+    const media = session.media_properties;
+    const playback = session.playback_info;
+    const timeline = session.timeline_properties;
+
+    // Connected
+    if (!spotifyConnected) {
+        spotifyConnected = true;
+
+        sbClient.executeCodeTrigger("spotify.connected", {
+            connected: true
+        });
+
+        showSuccess("spotify");
+        updateStatusBoxes();
+    }
 
     clearTimeout(spotifyHeartbeat);
     spotifyHeartbeat = setTimeout(() => {
-      spotifyConnected = false;
-      updateStatusBoxes();
-      console.warn("⚠️ Spotify heartbeat timeout");
-    }, 15000);
-  });
+        if (spotifyConnected) {
+            spotifyConnected = false;
 
-  sbClient.on("spotify.songchange", () => {
-    spotifyConnected = true;
+            sbClient.executeCodeTrigger("spotify.disconnected", {
+                connected: false
+            });
 
-    clearTimeout(spotifyHeartbeat);
-    spotifyHeartbeat = setTimeout(() => {
-      spotifyConnected = false;
-      updateStatusBoxes();
-      console.warn("⚠️ Spotify heartbeat timeout");
+            updateStatusBoxes();
+        }
     }, 15000);
-  });
+
+    // Song Changed
+    const trackId = `${media.Artist}|${media.AlbumTitle}|${media.Title}`;
+
+    if (trackId !== lastTrackId) {
+        lastTrackId = trackId;
+
+        console.log(`🎵 ${media.Artist} - ${media.Title}`);
+
+        sbClient.executeCodeTrigger("spotify.songchange", {
+            title: media.Title,
+            artist: media.Artist,
+            album: media.AlbumTitle,
+            albumArtist: media.AlbumArtist,
+            duration: timeline.EndTime,
+            position: timeline.Position,
+            playbackStatus: playback.PlaybackStatus,
+            shuffle: playback.IsShuffleActive,
+            source: session.source_app_id
+        });
+    }
+
+} catch (err) {
+    if (spotifyConnected) {
+        spotifyConnected = false;
+
+        sbClient.executeCodeTrigger("spotify.disconnected", {
+            connected: false
+        });
+
+        updateStatusBoxes();
+    }
+}
+
+setInterval(pollSpotify, 1000);
+pollSpotify();
+}
 }
 
 // -------------------- TIKFINITY --------------------
