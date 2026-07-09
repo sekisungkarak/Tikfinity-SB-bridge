@@ -166,21 +166,19 @@ async function pollSpotify() {
         }
 
         // Song Changed
-        const trackId = JSON.stringify({
-              title: media.Title,
-              artist: media.Artist,
-              album: media.AlbumTitle,
-              albumArtist: media.AlbumArtist,
-              thumbnail: media.Thumbnail
-          });
+        const trackId = [
+            media.Title ?? "",
+            media.Artist ?? "",
+            media.AlbumTitle ?? ""
+        ]
+        .map(v => v.trim().toLowerCase())
+        .join("|");
 
         if (
             playback.PlaybackStatus === 4 &&
             trackId !== lastTrackId
         ) {
-            lastTrackId = trackId;
-
-            console.log(`🎵 ${media.Artist} - ${media.Title}`);
+            console.log("Song changed:", lastTrackId, "->", trackId);
 
             sbClient.executeCodeTrigger("spotify.songchange", {
                 title: media.Title,
@@ -194,6 +192,8 @@ async function pollSpotify() {
                 shuffle: playback.IsShuffleActive,
                 source: session.source_app_id
             });
+
+            lastTrackId = trackId;
         }
 
     } catch (err) {
@@ -311,4 +311,4 @@ connectStreamerbotClient();
 connectTikFinity();
 
 pollSpotify();
-setInterval(pollSpotify, 500);
+setInterval(pollSpotify, 1000);
