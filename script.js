@@ -97,7 +97,6 @@ async function pollSpotify() {
         const json = await res.json();
 
         const connected = json.current_session_id !== null;
-        const wasConnected = spotifyConnected;
 
         // Connected / Disconnected
         if (connected !== spotifyConnected) {
@@ -134,54 +133,54 @@ async function pollSpotify() {
         const playback = session.playback_info;
         const timeline = session.timeline_properties;
 
-        // Playback Status
+        // Playback Status Changed
         if (playback.PlaybackStatus !== lastPlaybackStatus) {
+
+            // Track finished changing
+            if (lastPlaybackStatus === 2 && playback.PlaybackStatus !== 2) {
+                console.log(`🎵 ${media.Artist} - ${media.Title}`);
+
+                sbClient.executeCodeTrigger("spotify.songchange", {
+                    title: media.Title,
+                    artist: media.Artist,
+                    album: media.AlbumTitle,
+                    albumArtist: media.AlbumArtist,
+                    thumbnail: media.Thumbnail,
+                    duration: timeline.EndTime,
+                    position: timeline.Position,
+                    playbackStatus: playback.PlaybackStatus,
+                    shuffle: playback.IsShuffleActive,
+                    source: session.source_app_id
+                });
+            }
+
             lastPlaybackStatus = playback.PlaybackStatus;
 
             switch (playback.PlaybackStatus) {
                 case 0:
                     sbClient.executeCodeTrigger("spotify.closed");
                     break;
+
                 case 1:
                     sbClient.executeCodeTrigger("spotify.opened");
                     break;
+
+                case 2:
+                    sbClient.executeCodeTrigger("spotify.changing");
+                    break;
+
                 case 3:
                     sbClient.executeCodeTrigger("spotify.stopped");
                     break;
+
                 case 4:
                     sbClient.executeCodeTrigger("spotify.playing");
                     break;
+
                 case 5:
                     sbClient.executeCodeTrigger("spotify.paused");
                     break;
             }
-        }
-
-        // Song Changed
-        const trackId = JSON.stringify(session.media_properties);
-
-        // First poll after connecting:
-        // cache the current song but don't fire spotify.songchange
-        if (!wasConnected && spotifyConnected) {
-            lastTrackId = trackId;
-        }
-        else if (trackId !== lastTrackId) {
-            lastTrackId = trackId;
-
-            console.log(`🎵 ${media.Artist} - ${media.Title}`);
-
-            sbClient.executeCodeTrigger("spotify.songchange", {
-                title: media.Title,
-                artist: media.Artist,
-                album: media.AlbumTitle,
-                albumArtist: media.AlbumArtist,
-                thumbnail: media.Thumbnail,
-                duration: timeline.EndTime,
-                position: timeline.Position,
-                playbackStatus: playback.PlaybackStatus,
-                shuffle: playback.IsShuffleActive,
-                source: session.source_app_id
-            });
         }
 
     } catch (err) {
