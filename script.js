@@ -167,10 +167,10 @@ async function pollSpotify() {
 
         // Song Changed
         const trackId = [
-            media.Title,
-            media.Artist,
-            media.AlbumTitle,
-            timeline.EndTime
+        media.Title,
+        media.Artist,
+        media.AlbumTitle,
+        media.AlbumArtist
         ].join("|");
 
         if (lastTrackId === null) {
