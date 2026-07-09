@@ -174,14 +174,14 @@ async function pollSpotify() {
         ].join("|");
 
         if (lastTrackId === null) {
-            // First poll only
             lastTrackId = trackId;
         }
         else if (trackId !== lastTrackId) {
 
             lastTrackId = trackId;
 
-            console.log(`🎵 ${media.Artist} - ${media.Title}`);
+            if (playback.PlaybackStatus === 0)
+                return;
 
             sbClient.executeCodeTrigger("spotify.songchange", {
                 title: media.Title,
