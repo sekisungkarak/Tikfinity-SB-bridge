@@ -140,27 +140,39 @@ async function pollSpotify() {
 
             switch (playback.PlaybackStatus) {
                 case 0:
-                    sbClient.executeCodeTrigger("spotify.closed");
+                    sbClient.executeCodeTrigger("spotify.closed", {
+                        source_app_id: session.source_app_id
+                    });
                     break;
 
                 case 1:
-                    sbClient.executeCodeTrigger("spotify.opened");
+                    sbClient.executeCodeTrigger("spotify.opened", {
+                        source_app_id: session.source_app_id
+                    });
                     break;
 
                 case 2:
-                    sbClient.executeCodeTrigger("spotify.changing");
+                    sbClient.executeCodeTrigger("spotify.changing", {
+                        source_app_id: session.source_app_id
+                    });
                     break;
 
                 case 3:
-                    sbClient.executeCodeTrigger("spotify.stopped");
+                    sbClient.executeCodeTrigger("spotify.stopped", {
+                        source_app_id: session.source_app_id
+                    });
                     break;
 
                 case 4:
-                    sbClient.executeCodeTrigger("spotify.playing");
+                    sbClient.executeCodeTrigger("spotify.playing", {
+                        source_app_id: session.source_app_id
+                    });
                     break;
 
                 case 5:
-                    sbClient.executeCodeTrigger("spotify.paused");
+                    sbClient.executeCodeTrigger("spotify.paused", {
+                        source_app_id: session.source_app_id
+                    });
                     break;
             }
         }
