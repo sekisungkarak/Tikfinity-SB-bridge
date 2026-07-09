@@ -299,4 +299,4 @@ connectStreamerbotClient();
 connectTikFinity();
 
 pollSpotify();
-setInterval(pollSpotify, 1000);
+setInterval(pollSpotify, 500);
