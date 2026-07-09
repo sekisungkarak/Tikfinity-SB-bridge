@@ -173,15 +173,13 @@ async function pollSpotify() {
         media.AlbumArtist
         ].join("|");
 
-        if (lastTrackId === null) {
+        if (
+            playback.PlaybackStatus !== 0 &&
+            trackId !== lastTrackId
+        ) {
             lastTrackId = trackId;
-        }
-        else if (trackId !== lastTrackId) {
 
-            lastTrackId = trackId;
-
-            if (playback.PlaybackStatus === 0)
-                return;
+            console.log(`🎵 ${media.Artist} - ${media.Title}`);
 
             sbClient.executeCodeTrigger("spotify.songchange", {
                 title: media.Title,
