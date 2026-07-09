@@ -1,9 +1,9 @@
 let streamerbotConnected = false;
 let tikfinityConnected = false;
-let spotifyConnected = false;
 
+let spotifyConnected = false;
 let lastPlaybackStatus = -1;
-let disconnectCount = 0;
+let lastTrackId = null;
 
 // Global sbClient
 let sbClient = null;
@@ -97,16 +97,13 @@ async function pollSpotify() {
 
         const json = await res.json();
 
+        // Connected / Disconnected
         const connected = json.current_session_id !== null;
 
+        if (connected !== spotifyConnected) {
+            spotifyConnected = connected;
 
-        // Connected
-        if (connected) {
-            disconnectCount = 0;
-
-            if (!spotifyConnected) {
-                spotifyConnected = true;
-
+            if (connected) {
                 console.log("🎵 Spotify connected");
 
                 sbClient.executeCodeTrigger("spotify.connected", {
@@ -114,16 +111,7 @@ async function pollSpotify() {
                 });
 
                 showSuccess("spotify");
-                updateStatusBoxes();
-            }
-        }
-        // Disconnected (only after 3 consecutive polls)
-        else {
-            disconnectCount++;
-
-            if (disconnectCount >= 3 && spotifyConnected) {
-                spotifyConnected = false;
-
+            } else {
                 console.log("❌ Spotify disconnected");
 
                 sbClient.executeCodeTrigger("spotify.disconnected", {
@@ -132,9 +120,10 @@ async function pollSpotify() {
 
                 lastPlaybackStatus = -1;
                 updateStatusBoxes();
+                return;
             }
 
-            return;
+            updateStatusBoxes();
         }
 
         if (!connected || !json.sessions || json.sessions.length === 0)
@@ -145,27 +134,8 @@ async function pollSpotify() {
         const playback = session.playback_info;
         const timeline = session.timeline_properties;
 
-        // Playback Status Changed
+        // Playback Status
         if (playback.PlaybackStatus !== lastPlaybackStatus) {
-
-            // Track finished changing
-            if (lastPlaybackStatus === 2 && playback.PlaybackStatus !== 2) {
-                console.log(`🎵 ${media.Artist} - ${media.Title}`);
-
-                sbClient.executeCodeTrigger("spotify.songchange", {
-                    title: media.Title,
-                    artist: media.Artist,
-                    album: media.AlbumTitle,
-                    albumArtist: media.AlbumArtist,
-                    thumbnail: media.Thumbnail,
-                    duration: timeline.EndTime,
-                    position: timeline.Position,
-                    playbackStatus: playback.PlaybackStatus,
-                    shuffle: playback.IsShuffleActive,
-                    source: session.source_app_id
-                });
-            }
-
             lastPlaybackStatus = playback.PlaybackStatus;
 
             switch (playback.PlaybackStatus) {
@@ -195,10 +165,45 @@ async function pollSpotify() {
             }
         }
 
+        // Song Changed
+        const trackId = [
+            media.Title,
+            media.Artist,
+            media.AlbumTitle,
+            timeline.EndTime
+        ].join("|");
+
+        if (lastTrackId === null) {
+            // First poll only
+            lastTrackId = trackId;
+        }
+        else if (trackId !== lastTrackId) {
+
+            lastTrackId = trackId;
+
+            console.log(`🎵 ${media.Artist} - ${media.Title}`);
+
+            sbClient.executeCodeTrigger("spotify.songchange", {
+                title: media.Title,
+                artist: media.Artist,
+                album: media.AlbumTitle,
+                albumArtist: media.AlbumArtist,
+                thumbnail: media.Thumbnail,
+                duration: timeline.EndTime,
+                position: timeline.Position,
+                playbackStatus: playback.PlaybackStatus,
+                shuffle: playback.IsShuffleActive,
+                source: session.source_app_id
+            });
+        }
+
     } catch (err) {
         console.warn("Spotify API unavailable:", err.message);
     }
 }
+
+pollSpotify();
+setInterval(pollSpotify, 1000);
 
 
 // -------------------- TIKFINITY --------------------
