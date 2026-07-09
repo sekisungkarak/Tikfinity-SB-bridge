@@ -158,7 +158,7 @@ async function pollSpotify() {
         }
 
         // Song Changed
-        const trackId = `${media.Artist}|${media.AlbumTitle}|${media.Title}`;
+        const trackId = JSON.stringify(session.media_properties);
 
         // First poll after connecting:
         // cache the current song but don't fire spotify.songchange
