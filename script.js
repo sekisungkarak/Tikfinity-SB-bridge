@@ -166,12 +166,13 @@ async function pollSpotify() {
         }
 
         // Song Changed
-        const trackId = [
-        media.Title,
-        media.Artist,
-        media.AlbumTitle,
-        media.AlbumArtist
-        ].join("|");
+        const trackId = JSON.stringify({
+              title: media.Title,
+              artist: media.Artist,
+              album: media.AlbumTitle,
+              albumArtist: media.AlbumArtist,
+              thumbnail: media.Thumbnail
+          });
 
         if (
             playback.PlaybackStatus !== 0 &&
