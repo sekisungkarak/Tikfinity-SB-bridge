@@ -175,7 +175,7 @@ async function pollSpotify() {
           });
 
         if (
-            playback.PlaybackStatus !== 0 &&
+            playback.PlaybackStatus === 4 &&
             trackId !== lastTrackId
         ) {
             lastTrackId = trackId;
