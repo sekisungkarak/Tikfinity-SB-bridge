@@ -202,10 +202,6 @@ async function pollSpotify() {
     }
 }
 
-pollSpotify();
-setInterval(pollSpotify, 1000);
-
-
 // -------------------- TIKFINITY --------------------
 
 function connectTikFinity() {
