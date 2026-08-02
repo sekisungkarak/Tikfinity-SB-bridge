@@ -88,20 +88,37 @@ function connectStreamerbotClient() {
 
 const SPOTIFY_API = "http://127.0.0.1:5000/now-playing";
 
-async function getLightVibrant(imageUrl) {
-    try {
-        const palette = await Vibrant.from(imageUrl).getPalette();
+async function getPalette(imageUrl) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
 
-        return (
-            palette.LightVibrant?.getHex() ||
-            palette.Vibrant?.getHex() ||
-            palette.LightMuted?.getHex() ||
-            "#FFFFFF"
-        );
-    } catch (err) {
-        console.error("Palette Error:", err);
-        return "#FFFFFF";
-    }
+        img.onload = () => {
+            const thief = new ColorThief();
+
+            const dominant = thief.getColor(img);
+            const palette = thief.getPalette(img, 5);
+
+            const rgbToHex = ([r, g, b]) =>
+                "#" + [r, g, b]
+                    .map(v => v.toString(16).padStart(2, "0"))
+                    .join("")
+                    .toUpperCase();
+
+            resolve({
+                dominant: rgbToHex(dominant),
+                palette: palette.map(rgbToHex)
+            });
+        };
+
+        img.onerror = () =>
+            resolve({
+                dominant: "#FFFFFF",
+                palette: ["#FFFFFF"]
+            });
+
+        img.src = imageUrl;
+    });
 }
 
 async function pollSpotify() {
@@ -206,25 +223,20 @@ async function pollSpotify() {
             playback.PlaybackStatus === 4 &&
             trackId !== lastTrackId
         ) {
-            lastTrackId = trackId;
+            const colors = await getPalette(media.Thumbnail);
 
-            const lightVibrant = await getLightVibrant(media.Thumbnail);
+        sbClient.executeCodeTrigger("spotify.songchange", {
+            title: media.Title,
+            artist: media.Artist,
+            album: media.AlbumTitle,
+            thumbnail: media.Thumbnail,
 
-            console.log(`🎵 ${media.Artist} - ${media.Title}`);
+            color: colors.dominant,
+            palette: colors.palette,
 
-            sbClient.executeCodeTrigger("spotify.songchange", {
-                title: media.Title,
-                artist: media.Artist,
-                album: media.AlbumTitle,
-                albumArtist: media.AlbumArtist,
-                thumbnail: media.Thumbnail,
-                lightVibrant: lightVibrant,
-                duration: timeline.EndTime,
-                position: timeline.Position,
-                playbackStatus: playback.PlaybackStatus,
-                shuffle: playback.IsShuffleActive,
-                source_app_id: session.source_app_id
-            });
+            playbackStatus: playback.PlaybackStatus,
+            source_app_id: session.source_app_id
+        });
 
             lastTrackId = trackId;
         }
