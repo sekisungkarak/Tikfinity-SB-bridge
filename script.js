@@ -88,6 +88,22 @@ function connectStreamerbotClient() {
 
 const SPOTIFY_API = "http://127.0.0.1:5000/now-playing";
 
+async function getLightVibrant(imageUrl) {
+    try {
+        const palette = await Vibrant.from(imageUrl).getPalette();
+
+        return (
+            palette.LightVibrant?.getHex() ||
+            palette.Vibrant?.getHex() ||
+            palette.LightMuted?.getHex() ||
+            "#FFFFFF"
+        );
+    } catch (err) {
+        console.error("Palette Error:", err);
+        return "#FFFFFF";
+    }
+}
+
 async function pollSpotify() {
     try {
         const res = await fetch(SPOTIFY_API);
@@ -186,11 +202,15 @@ async function pollSpotify() {
         .map(v => v.trim().toLowerCase())
         .join("|");
 
-        if (
+                if (
             playback.PlaybackStatus === 4 &&
             trackId !== lastTrackId
         ) {
-            console.log("Song changed:", lastTrackId, "->", trackId);
+            lastTrackId = trackId;
+
+            const lightVibrant = await getLightVibrant(media.Thumbnail);
+
+            console.log(`🎵 ${media.Artist} - ${media.Title}`);
 
             sbClient.executeCodeTrigger("spotify.songchange", {
                 title: media.Title,
@@ -198,11 +218,12 @@ async function pollSpotify() {
                 album: media.AlbumTitle,
                 albumArtist: media.AlbumArtist,
                 thumbnail: media.Thumbnail,
+                lightVibrant: lightVibrant,
                 duration: timeline.EndTime,
                 position: timeline.Position,
                 playbackStatus: playback.PlaybackStatus,
                 shuffle: playback.IsShuffleActive,
-                source: session.source_app_id
+                source_app_id: session.source_app_id
             });
 
             lastTrackId = trackId;
