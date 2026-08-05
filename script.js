@@ -219,26 +219,45 @@ async function pollSpotify() {
         .map(v => v.trim().toLowerCase())
         .join("|");
 
-                if (
+        if (
             playback.PlaybackStatus === 4 &&
             trackId !== lastTrackId
         ) {
-            const colors = await getPalette(media.Thumbnail);
+            let thumbnail = media.Thumbnail || "";
+            let latestMedia = media;
 
-        await new Promise(r => setTimeout(r, 700));
+            // Wait up to 1 second for the thumbnail to become available
+            for (let i = 0; i < 10 && !thumbnail; i++) {
+                await new Promise(r => setTimeout(r, 100));
 
-        sbClient.executeCodeTrigger("spotify.songchange", {
-            title: media.Title,
-            artist: media.Artist,
-            album: media.AlbumTitle,
-            thumbnail: media.Thumbnail,
+                try {
+                    const res = await fetch(SPOTIFY_API);
+                    if (!res.ok) continue;
 
-            color: colors.dominant,
-            palette: colors.palette,
+                    const json = await res.json();
+                    if (!json.sessions?.length) continue;
 
-            playbackStatus: playback.PlaybackStatus,
-            source_app_id: session.source_app_id
-        });
+                    latestMedia = json.sessions[0].media_properties;
+                    thumbnail = latestMedia.Thumbnail || "";
+                } catch (e) {
+                    console.error("Retry thumbnail failed:", e);
+                }
+            }
+
+            const colors = await getPalette(thumbnail);
+
+            sbClient.executeCodeTrigger("spotify.songchange", {
+                title: latestMedia.Title,
+                artist: latestMedia.Artist,
+                album: latestMedia.AlbumTitle,
+                thumbnail: thumbnail,
+
+                color: colors.dominant,
+                palette: colors.palette,
+
+                playbackStatus: playback.PlaybackStatus,
+                source_app_id: session.source_app_id
+            });
 
             lastTrackId = trackId;
         }
