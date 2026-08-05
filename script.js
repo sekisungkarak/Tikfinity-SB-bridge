@@ -152,6 +152,7 @@ async function pollSpotify() {
                 });
 
                 lastPlaybackStatus = -1;
+                lastTrackId = "";
                 updateStatusBoxes();
                 return;
             }
@@ -159,13 +160,12 @@ async function pollSpotify() {
             updateStatusBoxes();
         }
 
-                if (!connected || !json.sessions || json.sessions.length === 0)
+        if (!connected || !json.sessions || json.sessions.length === 0)
             return;
 
         const session = json.sessions[0];
         const media = session.media_properties;
         const playback = session.playback_info;
-        const timeline = session.timeline_properties;
 
         // Current Track ID
         const trackId = [
@@ -176,18 +176,13 @@ async function pollSpotify() {
         .map(v => v.trim().toLowerCase())
         .join("|");
 
-        // Detect song change
-        const isSongChanged =
-            playback.PlaybackStatus === 4 &&
-            trackId !== lastTrackId;
-
         // =========================
         // Song Changed (Priority)
         // =========================
-        if (isSongChanged) {
-
-            // Suppress playback events while changing tracks
-            suppressPlaybackEvents = true;
+        if (
+            playback.PlaybackStatus === 4 &&
+            trackId !== lastTrackId
+        ) {
 
             let thumbnail = media.Thumbnail || "";
             let latestMedia = media;
@@ -197,10 +192,10 @@ async function pollSpotify() {
                 await new Promise(r => setTimeout(r, 100));
 
                 try {
-                    const res = await fetch(SPOTIFY_API);
-                    if (!res.ok) continue;
+                    const retry = await fetch(SPOTIFY_API);
+                    if (!retry.ok) continue;
 
-                    const latestJson = await res.json();
+                    const latestJson = await retry.json();
                     if (!latestJson.sessions?.length) continue;
 
                     latestMedia = latestJson.sessions[0].media_properties;
@@ -216,7 +211,7 @@ async function pollSpotify() {
                 title: latestMedia.Title,
                 artist: latestMedia.Artist,
                 album: latestMedia.AlbumTitle,
-                thumbnail: thumbnail,
+                thumbnail,
 
                 color: colors.dominant,
                 palette: colors.palette,
@@ -227,19 +222,16 @@ async function pollSpotify() {
 
             lastTrackId = trackId;
 
-            // Keep playback events suppressed briefly
-            setTimeout(() => {
-                suppressPlaybackEvents = false;
-            }, 1500);
+            // Prevent this poll from also firing "playing"
+            lastPlaybackStatus = playback.PlaybackStatus;
+            return;
         }
 
         // =========================
         // Playback Status
         // =========================
-        if (
-            !suppressPlaybackEvents &&
-            playback.PlaybackStatus !== lastPlaybackStatus
-        ) {
+        if (playback.PlaybackStatus !== lastPlaybackStatus) {
+
             lastPlaybackStatus = playback.PlaybackStatus;
 
             switch (playback.PlaybackStatus) {
@@ -280,6 +272,7 @@ async function pollSpotify() {
                     break;
             }
         }
+
     } catch (err) {
         console.warn("Spotify API unavailable:", err.message);
     }
