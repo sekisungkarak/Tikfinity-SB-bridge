@@ -159,7 +159,7 @@ async function pollSpotify() {
             updateStatusBoxes();
         }
 
-        if (!connected || !json.sessions || json.sessions.length === 0)
+                if (!connected || !json.sessions || json.sessions.length === 0)
             return;
 
         const session = json.sessions[0];
@@ -167,8 +167,79 @@ async function pollSpotify() {
         const playback = session.playback_info;
         const timeline = session.timeline_properties;
 
+        // Current Track ID
+        const trackId = [
+            media.Title ?? "",
+            media.Artist ?? "",
+            media.AlbumTitle ?? ""
+        ]
+        .map(v => v.trim().toLowerCase())
+        .join("|");
+
+        // Detect song change
+        const isSongChanged =
+            playback.PlaybackStatus === 4 &&
+            trackId !== lastTrackId;
+
+        // =========================
+        // Song Changed (Priority)
+        // =========================
+        if (isSongChanged) {
+
+            // Suppress playback events while changing tracks
+            suppressPlaybackEvents = true;
+
+            let thumbnail = media.Thumbnail || "";
+            let latestMedia = media;
+
+            // Wait up to 1 second for album art
+            for (let i = 0; i < 10 && !thumbnail; i++) {
+                await new Promise(r => setTimeout(r, 100));
+
+                try {
+                    const res = await fetch(SPOTIFY_API);
+                    if (!res.ok) continue;
+
+                    const latestJson = await res.json();
+                    if (!latestJson.sessions?.length) continue;
+
+                    latestMedia = latestJson.sessions[0].media_properties;
+                    thumbnail = latestMedia.Thumbnail || "";
+                } catch (e) {
+                    console.error("Retry thumbnail failed:", e);
+                }
+            }
+
+            const colors = await getPalette(thumbnail);
+
+            sbClient.executeCodeTrigger("spotify.songchange", {
+                title: latestMedia.Title,
+                artist: latestMedia.Artist,
+                album: latestMedia.AlbumTitle,
+                thumbnail: thumbnail,
+
+                color: colors.dominant,
+                palette: colors.palette,
+
+                playbackStatus: playback.PlaybackStatus,
+                source_app_id: session.source_app_id
+            });
+
+            lastTrackId = trackId;
+
+            // Keep playback events suppressed briefly
+            setTimeout(() => {
+                suppressPlaybackEvents = false;
+            }, 1500);
+        }
+
+        // =========================
         // Playback Status
-        if (playback.PlaybackStatus !== lastPlaybackStatus) {
+        // =========================
+        if (
+            !suppressPlaybackEvents &&
+            playback.PlaybackStatus !== lastPlaybackStatus
+        ) {
             lastPlaybackStatus = playback.PlaybackStatus;
 
             switch (playback.PlaybackStatus) {
@@ -209,59 +280,6 @@ async function pollSpotify() {
                     break;
             }
         }
-
-        // Song Changed
-        const trackId = [
-            media.Title ?? "",
-            media.Artist ?? "",
-            media.AlbumTitle ?? ""
-        ]
-        .map(v => v.trim().toLowerCase())
-        .join("|");
-
-        if (
-            playback.PlaybackStatus === 4 &&
-            trackId !== lastTrackId
-        ) {
-            let thumbnail = media.Thumbnail || "";
-            let latestMedia = media;
-
-            // Wait up to 1 second for the thumbnail to become available
-            for (let i = 0; i < 10 && !thumbnail; i++) {
-                await new Promise(r => setTimeout(r, 100));
-
-                try {
-                    const res = await fetch(SPOTIFY_API);
-                    if (!res.ok) continue;
-
-                    const json = await res.json();
-                    if (!json.sessions?.length) continue;
-
-                    latestMedia = json.sessions[0].media_properties;
-                    thumbnail = latestMedia.Thumbnail || "";
-                } catch (e) {
-                    console.error("Retry thumbnail failed:", e);
-                }
-            }
-
-            const colors = await getPalette(thumbnail);
-
-            sbClient.executeCodeTrigger("spotify.songchange", {
-                title: latestMedia.Title,
-                artist: latestMedia.Artist,
-                album: latestMedia.AlbumTitle,
-                thumbnail: thumbnail,
-
-                color: colors.dominant,
-                palette: colors.palette,
-
-                playbackStatus: playback.PlaybackStatus,
-                source_app_id: session.source_app_id
-            });
-
-            lastTrackId = trackId;
-        }
-
     } catch (err) {
         console.warn("Spotify API unavailable:", err.message);
     }
