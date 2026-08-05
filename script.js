@@ -4,7 +4,6 @@ let tikfinityConnected = false;
 let spotifyConnected = false;
 let lastPlaybackStatus = -1;
 let lastTrackId = null;
-let pausedTimeout = null;
 
 // Global sbClient
 let sbClient = null;
@@ -148,19 +147,11 @@ async function pollSpotify() {
             } else {
                 console.log("❌ Spotify disconnected");
 
-                // Cancel pending paused event
-                if (pausedTimeout) {
-                    clearTimeout(pausedTimeout);
-                    pausedTimeout = null;
-                }
-
                 sbClient.executeCodeTrigger("spotify.disconnected", {
                     connected: false
                 });
 
                 lastPlaybackStatus = -1;
-                lastTrackId = "";
-
                 updateStatusBoxes();
                 return;
             }
@@ -243,7 +234,6 @@ async function pollSpotify() {
             lastPlaybackStatus = playback.PlaybackStatus;
 
             switch (playback.PlaybackStatus) {
-
                 case 0:
                     sbClient.executeCodeTrigger("spotify.closed", {
                         source: session.source_app_id
@@ -269,40 +259,15 @@ async function pollSpotify() {
                     break;
 
                 case 4:
-
-                    // Cancel pending paused event
-                    if (pausedTimeout) {
-                        clearTimeout(pausedTimeout);
-                        pausedTimeout = null;
-                    }
-
                     sbClient.executeCodeTrigger("spotify.playing", {
                         source: session.source_app_id
                     });
-
                     break;
 
                 case 5:
-
-                    // Delay paused to avoid firing before disconnect
-                    if (pausedTimeout) {
-                        clearTimeout(pausedTimeout);
-                    }
-
-                    pausedTimeout = setTimeout(() => {
-
-                        pausedTimeout = null;
-
-                        // Spotify disconnected while waiting
-                        if (!spotifyConnected)
-                            return;
-
-                        sbClient.executeCodeTrigger("spotify.paused", {
-                            source: session.source_app_id
-                        });
-
-                    }, 1200);
-
+                    sbClient.executeCodeTrigger("spotify.paused", {
+                        source: session.source_app_id
+                    });
                     break;
             }
         }
