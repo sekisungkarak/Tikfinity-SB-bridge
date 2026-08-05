@@ -4,6 +4,7 @@ let tikfinityConnected = false;
 let spotifyConnected = false;
 let lastPlaybackStatus = -1;
 let lastTrackId = null;
+let disconnectCounter = 0;
 
 // Global sbClient
 let sbClient = null;
@@ -133,18 +134,13 @@ async function pollSpotify() {
         // Connected / Disconnected
         const connected = json.current_session_id !== null;
 
-        if (connected !== spotifyConnected) {
-            spotifyConnected = connected;
+        if (!connected) {
+            disconnectCounter++;
 
-            if (connected) {
-                console.log("🎵 Spotify connected");
+            // Require 3 consecutive failed polls (~3 seconds with a 1s interval)
+            if (disconnectCounter >= 3 && spotifyConnected) {
+                spotifyConnected = false;
 
-                sbClient.executeCodeTrigger("spotify.connected", {
-                    connected: true
-                });
-
-                showSuccess("spotify");
-            } else {
                 console.log("❌ Spotify disconnected");
 
                 sbClient.executeCodeTrigger("spotify.disconnected", {
@@ -152,10 +148,26 @@ async function pollSpotify() {
                 });
 
                 lastPlaybackStatus = -1;
+                lastTrackId = "";
                 updateStatusBoxes();
-                return;
             }
 
+            return;
+        }
+
+        // Reset counter as soon as Spotify is seen again
+        disconnectCounter = 0;
+
+        if (!spotifyConnected) {
+            spotifyConnected = true;
+
+            console.log("🎵 Spotify connected");
+
+            sbClient.executeCodeTrigger("spotify.connected", {
+                connected: true
+            });
+
+            showSuccess("spotify");
             updateStatusBoxes();
         }
 
