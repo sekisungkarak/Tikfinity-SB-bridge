@@ -225,6 +225,8 @@ async function pollSpotify() {
         ) {
             const colors = await getPalette(media.Thumbnail);
 
+        await new Promise(r => setTimeout(r, 300));
+
         sbClient.executeCodeTrigger("spotify.songchange", {
             title: media.Title,
             artist: media.Artist,
