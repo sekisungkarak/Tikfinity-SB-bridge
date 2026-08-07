@@ -5,6 +5,7 @@ let spotifyConnected = false;
 let lastPlaybackStatus = -1;
 let lastTrackId = null;
 let disconnectCounter = 0;
+let lastSourceAppId = "";
 
 // Global sbClient
 let sbClient = null;
@@ -145,7 +146,7 @@ async function pollSpotify() {
 
                 sbClient.executeCodeTrigger("spotify.disconnected", {
                     connected: false,
-                    source: json.current_session_id
+                    source: lastSourceAppId
                 });
 
                 lastPlaybackStatus = -1;
@@ -179,16 +180,19 @@ async function pollSpotify() {
         const currentSessionId = json.current_session_id?.toLowerCase();
 
         const session = json.sessions.find(
-            s => s.source_app_id?.toLowerCase() === currentSessionId
-        );
+          s => s.source_app_id?.toLowerCase() === currentSessionId
+      );
 
-        if (!session) {
-            console.warn("Active Spotify session not found.");
-            return;
-        }
+      if (!session) {
+          console.warn("Active Spotify session not found.");
+          return;
+      }
 
-        const media = session.media_properties;
-        const playback = session.playback_info;
+      // Save the source so we still know it after disconnect
+      lastSourceAppId = session.source_app_id;
+
+      const media = session.media_properties;
+      const playback = session.playback_info;
 
         // Current Track ID
         const trackId = [
