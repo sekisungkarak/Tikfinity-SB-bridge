@@ -306,10 +306,41 @@ async function pollSpotify() {
                     break;
 
                 case 5:
-                    sbClient.executeCodeTrigger("spotify.paused", {
-                        source: session.source_app_id
-                    });
+                {
+                    setTimeout(async () => {
+
+                        try {
+                            const res = await fetch(SPOTIFY_API);
+                            if (!res.ok) return;
+
+                            const json = await res.json();
+
+                            const session = json.sessions.find(
+                                s => s.source_app_id?.toLowerCase() === json.current_session_id?.toLowerCase()
+                            );
+
+                            if (!session) return;
+
+                            // Ignore if playback resumed or song changed
+                            if (session.playback_info.PlaybackStatus !== 5)
+                                return;
+
+                            // Ignore if another poll already updated the status
+                            if (lastPlaybackStatus !== 5)
+                                return;
+
+                            sbClient.executeCodeTrigger("spotify.paused", {
+                                source: session.source_app_id
+                            });
+
+                        } catch (e) {
+                            console.error(e);
+                        }
+
+                    }, 600);
+
                     break;
+                }
             }
         }
 
