@@ -3,7 +3,7 @@ let tikfinityConnected = false;
 
 let spotifyConnected = false;
 let lastPlaybackStatus = -1;
-let lastTrackId = null;
+let lastTrackId = "";
 let disconnectCounter = 0;
 let lastSourceAppId = "";
 
@@ -196,42 +196,34 @@ async function pollSpotify() {
 
         // Current Track ID
         const trackId = [
-            media.Title ?? "",
-            media.Artist ?? "",
-            media.AlbumTitle ?? ""
+        media.Title ?? "",
+        media.Artist ?? "",
+        media.AlbumTitle ?? ""
         ]
-            .map(v => v.trim().toLowerCase())
-            .join("|");
+        .map(v => v.trim().toLowerCase())
+        .join("|");
+
+        const songChanged = playback.PlaybackStatus === 4 && trackId !== lastTrackId;
 
         // =========================
         // Song Changed (Priority)
         // =========================
-        if (
-            playback.PlaybackStatus === 4 &&
-            trackId !== lastTrackId
-        ) {
+        if (songChanged) {
 
             let thumbnail = media.Thumbnail || "";
             let latestMedia = media;
 
-            // Wait up to 1 second for album art
             for (let i = 0; i < 10 && !thumbnail; i++) {
                 await new Promise(r => setTimeout(r, 100));
 
                 try {
                     const retry = await fetch(SPOTIFY_API);
-                    if (!retry.ok)
-                        continue;
+                    if (!retry.ok) continue;
 
                     const latestJson = await retry.json();
 
-                    if (!latestJson.sessions?.length)
-                        continue;
-
-                    const latestCurrentId = latestJson.current_session_id?.toLowerCase();
-
                     const latestSession = latestJson.sessions.find(
-                        s => s.source_app_id?.toLowerCase() === latestCurrentId
+                        s => s.source_app_id?.toLowerCase() === latestJson.current_session_id?.toLowerCase()
                     );
 
                     if (!latestSession)
@@ -240,8 +232,7 @@ async function pollSpotify() {
                     latestMedia = latestSession.media_properties;
                     thumbnail = latestMedia.Thumbnail || "";
 
-                } catch (e) {
-                    console.error("Retry thumbnail failed:", e);
+                } catch {
                 }
             }
 
@@ -252,25 +243,22 @@ async function pollSpotify() {
                 artist: latestMedia.Artist,
                 album: latestMedia.AlbumTitle,
                 thumbnail,
-
                 color: colors.dominant,
                 palette: colors.palette,
-
                 playbackStatus: playback.PlaybackStatus,
                 source_app_id: session.source_app_id
             });
 
             lastTrackId = trackId;
-
-            // Prevent this poll from also firing "playing"
             lastPlaybackStatus = playback.PlaybackStatus;
+
             return;
         }
 
         // =========================
         // Playback Status
         // =========================
-        if (playback.PlaybackStatus !== lastPlaybackStatus) {
+        if (!songChanged && playback.PlaybackStatus !== lastPlaybackStatus) {
 
             lastPlaybackStatus = playback.PlaybackStatus;
 
@@ -306,41 +294,10 @@ async function pollSpotify() {
                     break;
 
                 case 5:
-                {
-                    setTimeout(async () => {
-
-                        try {
-                            const res = await fetch(SPOTIFY_API);
-                            if (!res.ok) return;
-
-                            const json = await res.json();
-
-                            const session = json.sessions.find(
-                                s => s.source_app_id?.toLowerCase() === json.current_session_id?.toLowerCase()
-                            );
-
-                            if (!session) return;
-
-                            // Ignore if playback resumed or song changed
-                            if (session.playback_info.PlaybackStatus !== 5)
-                                return;
-
-                            // Ignore if another poll already updated the status
-                            if (lastPlaybackStatus !== 5)
-                                return;
-
-                            sbClient.executeCodeTrigger("spotify.paused", {
-                                source: session.source_app_id
-                            });
-
-                        } catch (e) {
-                            console.error(e);
-                        }
-
-                    }, 600);
-
+                    sbClient.executeCodeTrigger("spotify.paused", {
+                        source: session.source_app_id
+                    });
                     break;
-                }
             }
         }
 
