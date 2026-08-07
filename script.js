@@ -145,7 +145,7 @@ async function pollSpotify() {
 
                 sbClient.executeCodeTrigger("spotify.disconnected", {
                     connected: false,
-                    source: session.source_app_id
+                    source: json.current_session_id
                 });
 
                 lastPlaybackStatus = -1;
