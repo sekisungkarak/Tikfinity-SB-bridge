@@ -5,6 +5,7 @@ let spotifyConnected = false;
 let lastPlaybackStatus = -1;
 let lastTrackId = "";
 let lastPlayingTrackId = "";
+let pausedTrackId = "";
 let disconnectCounter = 0;
 let lastSourceAppId = "";
 
@@ -252,6 +253,7 @@ async function pollSpotify() {
 
             lastTrackId = trackId;
             lastPlaybackStatus = playback.PlaybackStatus;
+            pausedTrackId = "";
 
             return;
         }
@@ -289,18 +291,24 @@ async function pollSpotify() {
                     break;
 
                 case 4:
-                    if (trackId !== lastPlayingTrackId) {
+                    {
+                        // Resuming the same song
+                        if (pausedTrackId === trackId) {
+                            sbClient.executeCodeTrigger("spotify.playing", {
+                                source: session.source_app_id
+                            });
+                        }
+
+                        // Clear pause state
+                        pausedTrackId = "";
+
                         break;
                     }
 
-                    sbClient.executeCodeTrigger("spotify.playing", {
-                        source: session.source_app_id
-                    });
-
-                    lastPlayingTrackId = trackId;
-                    break;
-
                 case 5:
+                    // Remember which track was paused
+                    pausedTrackId = trackId;
+
                     sbClient.executeCodeTrigger("spotify.paused", {
                         source: session.source_app_id
                     });
