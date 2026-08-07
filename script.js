@@ -171,10 +171,21 @@ async function pollSpotify() {
             updateStatusBoxes();
         }
 
-        if (!connected || !json.sessions || json.sessions.length === 0)
+        if (!json.sessions || json.sessions.length === 0)
             return;
 
-        const session = json.sessions[0];
+        // Find the active session instead of using sessions[0]
+        const currentSessionId = json.current_session_id?.toLowerCase();
+
+        const session = json.sessions.find(
+            s => s.source_app_id?.toLowerCase() === currentSessionId
+        );
+
+        if (!session) {
+            console.warn("Active Spotify session not found.");
+            return;
+        }
+
         const media = session.media_properties;
         const playback = session.playback_info;
 
@@ -184,8 +195,8 @@ async function pollSpotify() {
             media.Artist ?? "",
             media.AlbumTitle ?? ""
         ]
-        .map(v => v.trim().toLowerCase())
-        .join("|");
+            .map(v => v.trim().toLowerCase())
+            .join("|");
 
         // =========================
         // Song Changed (Priority)
@@ -204,13 +215,26 @@ async function pollSpotify() {
 
                 try {
                     const retry = await fetch(SPOTIFY_API);
-                    if (!retry.ok) continue;
+                    if (!retry.ok)
+                        continue;
 
                     const latestJson = await retry.json();
-                    if (!latestJson.sessions?.length) continue;
 
-                    latestMedia = latestJson.sessions[0].media_properties;
+                    if (!latestJson.sessions?.length)
+                        continue;
+
+                    const latestCurrentId = latestJson.current_session_id?.toLowerCase();
+
+                    const latestSession = latestJson.sessions.find(
+                        s => s.source_app_id?.toLowerCase() === latestCurrentId
+                    );
+
+                    if (!latestSession)
+                        continue;
+
+                    latestMedia = latestSession.media_properties;
                     thumbnail = latestMedia.Thumbnail || "";
+
                 } catch (e) {
                     console.error("Retry thumbnail failed:", e);
                 }
