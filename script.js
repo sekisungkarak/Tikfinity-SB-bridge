@@ -4,6 +4,7 @@ let tikfinityConnected = false;
 let spotifyConnected = false;
 let lastPlaybackStatus = -1;
 let lastTrackId = "";
+let lastPlayingTrackId = "";
 let disconnectCounter = 0;
 let lastSourceAppId = "";
 
@@ -288,9 +289,15 @@ async function pollSpotify() {
                     break;
 
                 case 4:
+                    if (trackId !== lastPlayingTrackId) {
+                        break;
+                    }
+
                     sbClient.executeCodeTrigger("spotify.playing", {
                         source: session.source_app_id
                     });
+
+                    lastPlayingTrackId = trackId;
                     break;
 
                 case 5:
