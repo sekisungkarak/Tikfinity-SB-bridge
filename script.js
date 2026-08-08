@@ -5,9 +5,10 @@ let spotifyConnected = false;
 let lastPlaybackStatus = -1;
 let lastTrackId = "";
 let lastPlayingTrackId = "";
-let pausedTrackId = "";
 let disconnectCounter = 0;
 let lastSourceAppId = "";
+let wasPaused = false;
+let pausedTrackId = "";
 
 // Global sbClient
 let sbClient = null;
@@ -205,58 +206,61 @@ async function pollSpotify() {
         .map(v => v.trim().toLowerCase())
         .join("|");
 
-        const songChanged = playback.PlaybackStatus === 4 && trackId !== lastTrackId;
 
         // =========================
         // Song Changed (Priority)
         // =========================
-        if (songChanged) {
+        if (
+              playback.PlaybackStatus === 4 &&
+              trackId !== lastTrackId
+          ) {
+              let thumbnail = media.Thumbnail || "";
+              let latestMedia = media;
 
-            let thumbnail = media.Thumbnail || "";
-            let latestMedia = media;
+              for (let i = 0; i < 10 && !thumbnail; i++) {
+                  await new Promise(r => setTimeout(r, 100));
 
-            for (let i = 0; i < 10 && !thumbnail; i++) {
-                await new Promise(r => setTimeout(r, 100));
+                  try {
+                      const retry = await fetch(SPOTIFY_API);
+                      if (!retry.ok) continue;
 
-                try {
-                    const retry = await fetch(SPOTIFY_API);
-                    if (!retry.ok) continue;
+                      const latestJson = await retry.json();
 
-                    const latestJson = await retry.json();
+                      const latestSession = latestJson.sessions.find(
+                          s => s.source_app_id?.toLowerCase() ===
+                              latestJson.current_session_id?.toLowerCase()
+                      );
 
-                    const latestSession = latestJson.sessions.find(
-                        s => s.source_app_id?.toLowerCase() === latestJson.current_session_id?.toLowerCase()
-                    );
+                      if (!latestSession)
+                          continue;
 
-                    if (!latestSession)
-                        continue;
+                      latestMedia = latestSession.media_properties;
+                      thumbnail = latestMedia.Thumbnail || "";
 
-                    latestMedia = latestSession.media_properties;
-                    thumbnail = latestMedia.Thumbnail || "";
+                  } catch (e) {
+                      console.error("Retry thumbnail failed:", e);
+                  }
+              }
 
-                } catch {
-                }
-            }
+              const colors = await getPalette(thumbnail);
 
-            const colors = await getPalette(thumbnail);
+              sbClient.executeCodeTrigger("spotify.songchange", {
+                  title: latestMedia.Title,
+                  artist: latestMedia.Artist,
+                  album: latestMedia.AlbumTitle,
+                  thumbnail,
+                  color: colors.dominant,
+                  palette: colors.palette,
+                  playbackStatus: playback.PlaybackStatus,
+                  source: session.source_app_id
+              });
 
-            sbClient.executeCodeTrigger("spotify.songchange", {
-                title: latestMedia.Title,
-                artist: latestMedia.Artist,
-                album: latestMedia.AlbumTitle,
-                thumbnail,
-                color: colors.dominant,
-                palette: colors.palette,
-                playbackStatus: playback.PlaybackStatus,
-                source_app_id: session.source_app_id
-            });
+              // Remember that this track change was processed
+              lastTrackId = trackId;
+              lastPlaybackStatus = playback.PlaybackStatus;
 
-            lastTrackId = trackId;
-            lastPlaybackStatus = playback.PlaybackStatus;
-            pausedTrackId = "";
-
-            return;
-        }
+              return;
+          }
 
         // =========================
         // Playback Status
@@ -291,27 +295,36 @@ async function pollSpotify() {
                     break;
 
                 case 4:
-                    {
-                        // Resuming the same song
-                        if (pausedTrackId === trackId) {
+                    if (wasPaused) {
+
+                        // Same song = genuine resume
+                        if (trackId === pausedTrackId) {
                             sbClient.executeCodeTrigger("spotify.playing", {
                                 source: session.source_app_id
                             });
                         }
 
-                        // Clear pause state
+                        // Different song = song change already handled it
+                        wasPaused = false;
                         pausedTrackId = "";
 
                         break;
                     }
 
+                    sbClient.executeCodeTrigger("spotify.playing", {
+                        source: session.source_app_id
+                    });
+
+                    break;
+
                 case 5:
-                    // Remember which track was paused
+                    wasPaused = true;
                     pausedTrackId = trackId;
 
                     sbClient.executeCodeTrigger("spotify.paused", {
                         source: session.source_app_id
                     });
+
                     break;
             }
         }
