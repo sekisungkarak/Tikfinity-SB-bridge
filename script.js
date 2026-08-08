@@ -4,11 +4,8 @@ let tikfinityConnected = false;
 let spotifyConnected = false;
 let lastPlaybackStatus = -1;
 let lastTrackId = "";
-let lastPlayingTrackId = "";
 let disconnectCounter = 0;
 let lastSourceAppId = "";
-let wasPaused = false;
-let pausedTrackId = "";
 
 // Global sbClient
 let sbClient = null;
@@ -214,6 +211,7 @@ async function pollSpotify() {
               playback.PlaybackStatus === 4 &&
               trackId !== lastTrackId
           ) {
+
               let thumbnail = media.Thumbnail || "";
               let latestMedia = media;
 
@@ -255,7 +253,6 @@ async function pollSpotify() {
                   source: session.source_app_id
               });
 
-              // Remember that this track change was processed
               lastTrackId = trackId;
               lastPlaybackStatus = playback.PlaybackStatus;
 
@@ -265,11 +262,14 @@ async function pollSpotify() {
         // =========================
         // Playback Status
         // =========================
-        if (!songChanged && playback.PlaybackStatus !== lastPlaybackStatus) {
+        if (playback.PlaybackStatus !== lastPlaybackStatus) {
+
+            const previousStatus = lastPlaybackStatus;
 
             lastPlaybackStatus = playback.PlaybackStatus;
 
             switch (playback.PlaybackStatus) {
+
                 case 0:
                     sbClient.executeCodeTrigger("spotify.closed", {
                         source: session.source_app_id
@@ -295,35 +295,30 @@ async function pollSpotify() {
                     break;
 
                 case 4:
-                    if (wasPaused) {
-
-                        // Same song = genuine resume
-                        if (trackId === pausedTrackId) {
-                            sbClient.executeCodeTrigger("spotify.playing", {
-                                source: session.source_app_id
-                            });
-                        }
-
-                        // Different song = song change already handled it
-                        wasPaused = false;
-                        pausedTrackId = "";
-
+                    // Don't fire playing when changing to a new song.
+                    if (trackId !== lastTrackId)
                         break;
-                    }
 
-                    sbClient.executeCodeTrigger("spotify.playing", {
-                        source: session.source_app_id
-                    });
+                    // Only fire playing when resuming the same song.
+                    if (previousStatus === 5) {
+                        sbClient.executeCodeTrigger("spotify.playing", {
+                            source: session.source_app_id
+                        });
+                    }
 
                     break;
 
                 case 5:
-                    wasPaused = true;
-                    pausedTrackId = trackId;
+                    // Don't fire paused for a new song.
+                    if (trackId !== lastTrackId)
+                        break;
 
-                    sbClient.executeCodeTrigger("spotify.paused", {
-                        source: session.source_app_id
-                    });
+                    // Only fire paused when pausing the current song.
+                    if (previousStatus === 4) {
+                        sbClient.executeCodeTrigger("spotify.paused", {
+                            source: session.source_app_id
+                        });
+                    }
 
                     break;
             }
